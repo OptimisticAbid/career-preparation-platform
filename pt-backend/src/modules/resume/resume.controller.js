@@ -13,7 +13,6 @@ const resumeUploadController = asyncHandler (async (req, res) => {
     });
   }
 
-  try {
     const result = await saveResumeData(userId, resumeFile);
 
     res.status(200).json({
@@ -21,15 +20,8 @@ const resumeUploadController = asyncHandler (async (req, res) => {
       message: "Resume uploaded successfully",
       data:  result 
     })
-  } 
+  
 
-  catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error uploading resume",
-      error: error.message
-    });
-  }
 });
 
 const getResumeController = async (req, res) => {

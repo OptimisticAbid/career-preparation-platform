@@ -12,12 +12,12 @@ export const resumeStatus = pgEnum("resume_status", [
 
 export const resumes = pgTable("resumes", {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
-    originalName: text("original_name").notNull(),
-    storedName: text("stored_name").notNull(),
-    mimeType: text("mime_type").notNull(),
-    path: text("path").notNull(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    fileName : text("file_name").notNull(),
+    filePath : text("file_path").notNull(),
+    fileType : text("file_type").notNull(),
+    fileSize : text("file_size").notNull(),
     status: resumeStatus("status").default("UPLOADED").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull()
 });

@@ -1,6 +1,7 @@
+import asyncHandler from "../../utils/asyncHandler.js";
 import { getUserProfileService, updateUserProfileService } from "./profiles.service.js";
 
-const getUserProfileController = async (req, res) => {
+const getUserProfileController = asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
     const userProfile = await getUserProfileService(userId);
@@ -10,9 +11,9 @@ const getUserProfileController = async (req, res) => {
         message: "User profile retrieved",
         data: userProfile
     });
-};
+});
 
-const updateUserProfileController = async (req, res) => {
+const updateUserProfileController = asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const { githubUsername, leetcodeUsername, codeforcesUsername, codechefUsername } = req.body;
 
@@ -30,6 +31,6 @@ const updateUserProfileController = async (req, res) => {
         message: "User profile updated",
         data: updatedProfile
     });
-};
+});
 
 export { getUserProfileController, updateUserProfileController }

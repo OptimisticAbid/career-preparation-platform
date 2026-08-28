@@ -17,11 +17,10 @@ export const saveResumeData = async (userId, resumeFile) => {
 
    const metaData = {
         userId: userId,
-        originalName: resumeFile.originalname,
-        storedName: resumeFile.filename,
-        mimeType: resumeFile.mimetype,
-        path: resumeFile.path,
-        size: resumeFile.size,
+        fileName: resumeFile.filename,
+        fileType: resumeFile.mimetype,
+        filePath: resumeFile.path,
+        fileSize: resumeFile.size,
         status: resumeStatus.UPLOADED,
    }
  
@@ -30,7 +29,7 @@ export const saveResumeData = async (userId, resumeFile) => {
         .values(metaData)
         .returning({
             userId : resumes.userId,
-            file : resumes.originalName
+            file : resumes.fileName
         });
 
     return newResume;

@@ -7,6 +7,7 @@ import dashboardRoutes from './modules/dashboard/dashboard.routes.js'
 import githubRoutes from "./modules/github/github.routes.js"
 import leetcodeRoutes from "./modules/leetcode/leetcode.routes.js"
 import resumeRoutes from "./modules/resume/resume.routes.js"
+import jdRoutes from "./modules/jd/jd.routes.js"
 import Redis from 'ioredis';
 
 const app = express()
@@ -24,6 +25,7 @@ app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/github", githubRoutes)
 app.use("/api/leetcode", leetcodeRoutes)
 app.use("/api/resume", resumeRoutes)
+app.use("/api/jd", jdRoutes)
 // error middleware
 app.use(errorMiddleware)
 
