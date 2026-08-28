@@ -9,12 +9,38 @@ const normalizeDifficulty = (difficulty) => {
     return difficultyMap[difficulty?.toLowerCase()]
 };
 
+export const problemExistsService = async (userId, platform, sourceProblemId) => {
+    const [existingProblem] = await db.select({
+        id: problems.id
+    }).from(problems).where(and(
+        eq(problems.userId, userId),
+        eq(problems.platform, platform),
+        eq(problems.sourceProblemId, sourceProblemId)
+    ))
+
+    return !!existingProblem
+}
+
 export const createProblemService = async (userId, problemData) => {
+     const [existingProblem] = await db.select().from(problems).where(and(
+        eq(problems.userId,userId),
+        eq(problems.platform,problemData.platform),
+        eq(problems.sourceProblemId, problemData.sourceProblemId)
+    ))
+
+    if(existingProblem) {
+        return {
+            skipped : true,
+            problem: existingProblem
+        }
+    }
+    
     const [problem] = await db.insert(problems)
         .values({
             userId,
             problemName: problemData.problemName,
             difficulty: normalizeDifficulty(problemData.difficulty),
+            sourceProblemId: problemData.sourceProblemId,
             status: problemData.status,
             platform: problemData.platform || null,
             platformUrl: problemData.platformUrl || null,

@@ -5,29 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1778054982421,
-      "tag": "0000_huge_domino",
+      "when": 1787898161139,
+      "tag": "0000_strange_franklin_richards",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1778058788424,
-      "tag": "0001_elite_black_knight",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1778058905385,
-      "tag": "0002_fresh_shooting_star",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1781079541690,
-      "tag": "0003_cute_shen",
+      "when": 1787898453890,
+      "tag": "0001_supreme_patch",
       "breakpoints": true
     }
   ]

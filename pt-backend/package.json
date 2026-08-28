@@ -15,12 +15,15 @@
     "db:studio": "npx drizzle-kit studio --config drizzle.config.js"
   },
   "dependencies": {
+    "@langchain/core": "^1.2.8",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
+    "langchain": "^1.5.9",
+    "multer": "^2.2.0",
     "pg": "^8.20.0"
   },
   "devDependencies": {

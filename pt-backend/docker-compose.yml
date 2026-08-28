@@ -10,10 +10,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       NODE_ENV: production
     volumes:
-      - placementTracker_data:/var/lib/postgresql/data
+      - placementTracker_data:/var/lib/postgresql
 
   redis:
-    image: redis:latest
+    image: redis:alpine
     restart: always
     ports:
       - 6379:6379

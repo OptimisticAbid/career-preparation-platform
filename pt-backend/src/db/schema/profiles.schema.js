@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, uuid } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, uuid, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users.schema.js";
 
 export const profiles = pgTable("profiles", {
@@ -8,6 +8,6 @@ export const profiles = pgTable("profiles", {
     githubUsername: text("github_username"),
     codeforcesUsername: text("codeforces_username"),
     codechefUsername: text("codechef_username"),
-    createdAt: text("created_at").defaultNow().notNull(),
-    updatedAt: text("updated_at").defaultNow().notNull()
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
