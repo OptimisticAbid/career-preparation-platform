@@ -1,0 +1,1 @@
+ALTER TABLE "resume_analysis" ADD CONSTRAINT "resume_analysis_resume_id_unique" UNIQUE("resume_id");

@@ -1,10 +1,8 @@
-import { db } from "../../db/index.js";
-import { users } from "../../db/schema/users.schema.js";
-import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
+import * as authRepository from "./auth.repository.js";
 
 const registerUserService = async (userData) => {
-    const [userExists] = await db.select().from(users).where(eq(users.email, userData.email));
+    const userExists = await authRepository.findByEmail(userData.email);
 
     if (userExists) {
         throw new Error("User already exists");
@@ -13,15 +11,7 @@ const registerUserService = async (userData) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(userData.password, salt);
 
-    const [newUser] = await db.insert(users).values({
-        name: userData.name,
-        email: userData.email,
-        password: hashedPassword
-    }).returning({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-    });
+    const newUser = await authRepository.create({ ...userData, password: hashedPassword });
 
     if (!newUser) {
         throw new Error("Failed to register");
@@ -33,7 +23,7 @@ const registerUserService = async (userData) => {
 const loginUserService = async (userData) => {
     const { email, password } = userData;
 
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const user = await authRepository.findByEmail(email);
 
     if (!user) {
         throw new Error("User not found");
@@ -53,11 +43,7 @@ const loginUserService = async (userData) => {
 };
 
 const getUserProfileService = async (email) => {
-    const [userProfile] = await db.select({
-        id: users.id,
-        name: users.name,
-        email: users.email
-    }).from(users).where(eq(users.email, email));
+    const userProfile = await authRepository.findProfileByEmail(email);
 
     if (!userProfile) {
         throw new Error("User profile not found");

@@ -1,9 +1,12 @@
-import { eq } from "drizzle-orm"
 import asyncHandler from "../../utils/asyncHandler.js"
-import { db } from "../../db/index.js"
-import { users } from "../../db/schema/users.schema.js"
-import { problems } from "../../db/schema/problems.schema.js"
-import { createProblemService, deleteProblemService, fetchAllProblemsService, getProblemByIdService, updateProblemService, deleteBatchProblemsService } from "./problems.service.js"
+import {
+    createProblemService,
+    deleteProblemService,
+    fetchAllProblemsService,
+    getProblemByIdService,
+    updateProblemService,
+    deleteBatchProblemsService,
+} from "./problems.service.js"
 
 const createProblemController = asyncHandler( async(req, res) => {
     const userId = req.user.id
@@ -15,13 +18,14 @@ const createProblemController = asyncHandler( async(req, res) => {
 
     const problemData = {
         problemName: req.body.problemName,
+        sourceProblemId: req.body.sourceProblemId,
         difficulty: req.body.difficulty,
         status: req.body.status,
         platform: req.body.platform,
         platformUrl: req.body.platformUrl,
         pattern: req.body.pattern,
         notes: req.body.notes,
-        needsRevison: req.body.needsRevison,
+        needsRevision: req.body.needsRevision ?? req.body.needsRevison,
         solvedAt: req.body.solvedAt,
         timeTaken: req.body.timeTaken
     };
@@ -59,8 +63,8 @@ const fetchAllProblemsController = asyncHandler(async (req, res) => {
         search: req.query.search,
         sortBy: req.query.sortBy || "createdAt",
         sortOrder: req.query.sortOrder || "desc",
-        limit: parseInt(req.query.limit) || 20,
-        offset: parseInt(req.query.offset) || 0
+        limit: req.query.limit,
+        offset: req.query.offset,
     };
 
     const userProblems = await fetchAllProblemsService(userId, filters)
@@ -85,7 +89,7 @@ const updateProblemController = asyncHandler( async(req, res) => {
         platformUrl: req.body.platformUrl,
         pattern: req.body.pattern,
         notes: req.body.notes,
-        needsRevison: req.body.needsRevison,
+        needsRevision: req.body.needsRevision ?? req.body.needsRevison,
         solvedAt: req.body.solvedAt,
         timeTaken: req.body.timeTaken
     }
@@ -116,7 +120,6 @@ const deleteBatchProblemsController = asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const { problemIds } = req.body;
 
-    console.log("Received problemIds for deletion:", problemIds); // Debugging log
     if (!Array.isArray(problemIds) || problemIds.length === 0) {
         res.status(400);
         throw new Error("problemIds must be a non-empty array");

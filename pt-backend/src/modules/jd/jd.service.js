@@ -1,27 +1,42 @@
-import { db } from "../../db/index.js";
-import { jd } from "../../db/schema/jd.schema.js";
+import { unlink } from "node:fs/promises";
+import { parseDocument } from "../../services/document-parser/document.parser.js";
+import { structuredDataFromText } from "./jd.analysis.js";
+import * as jdRepository from "./jd.repository.js";
 
-export const jdUploadService = async (userId, jdFile) => {
-    if(!jdFile) {
-        throw new Error("No JD file uploaded");
+const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+
+const removeUpload = async (filePath) => {
+    try {
+        await unlink(filePath);
+    } catch (error) {
+        if (error.code !== "ENOENT") console.error("Unable to remove JD upload:", error.message);
     }
-
-    const metaData = {
-        userId : userId,
-        fileName : jdFile.originalname,
-        filePath : jdFile.path,
-        fileType : jdFile.mimetype,
-        fileSize : jdFile.size,
-        status : "UPLOADED"
-    }
-
-    const [newJD] = await db
-        .insert(jd)
-        .values(metaData)
-        .returning({
-            userId : jd.userId,
-            fileName : jd.fileName
-        });
-        
-    return newJD;
 };
+
+export const uploadJobDescription = async (userId, file) => {
+    if (!file) throw httpError(400, "No job description file uploaded.");
+
+    try {
+        const extractedText = (await parseDocument(file.path)).trim();
+        
+        if (!extractedText) throw httpError(422, "No readable text was extracted from this document.");
+
+        const structuredData = await structuredDataFromText(extractedText);
+        return await jdRepository.create({
+            userId,
+            fileName: file.originalname,
+            filePath: file.path,
+            fileType: file.mimetype,
+            fileSize: file.size,
+            extractedText,
+            structuredData,
+        });
+    } catch (error) {
+        console.error("AI ERROR:", error);
+        console.error("AI ERROR MESSAGE:", error.message);
+        console.error("AI ERROR RESPONSE:", error.response);
+        throw httpError(500, "Could not process the jd document.");
+    }
+};
+
+export const getUserJobDescriptions = (userId) => jdRepository.findByUserId(userId);

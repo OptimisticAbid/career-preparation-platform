@@ -1,26 +1,22 @@
-import { eq } from "drizzle-orm"
-import { db } from "../../db/index.js"
-import { profiles } from "../../db/schema/profiles.schema.js"
+import { findUsernameByUserId } from "./github.repository.js"
+
+const getGithubUsername = async (userId) => {
+    if (!userId) throw new Error("User ID is required");
+
+    const username = await findUsernameByUserId(userId);
+    if (!username) throw new Error("GitHub username not linked");
+    return username;
+};
+
+const fetchGithubUser = async (username) => {
+    const response = await fetch(`https://api.github.com/users/${encodeURIComponent(username)}`);
+    if (!response.ok) throw new Error(`GitHub API request failed: ${response.status}`);
+    return response.json();
+};
 
 export const githubSyncService = async (userId) => {
-    if(!userId) {
-        throw new Error("user Id does not exist")
-    }
-
-    const [profile] = await db.select({
-            githubUsername : profiles.githubUsername
-    })
-        .from(profiles).where(eq(profiles.userId, userId))
-
-    if(!profile?.githubUsername) {
-        throw new Error("Github username not linked")
-    }
-
-    const response = await fetch(
-        `https://api.github.com/users/${profile.githubUsername}`
-    )
-
-    const githubData = await response.json()
+    const username = await getGithubUsername(userId);
+    const githubData = await fetchGithubUser(username);
 
     return {
         username: githubData.login,
@@ -37,24 +33,8 @@ export const githubSyncService = async (userId) => {
 }
 
 export const githubStatsService = async (userId) => {
-    if(!userId) {
-        throw new Error("user Id does not exist")
-    }
-
-    const [profile] = await db.select({
-            githubUsername : profiles.githubUsername
-    })
-        .from(profiles).where(eq(profiles.userId, userId))
-
-    if(!profile?.githubUsername) {
-        throw new Error("Github username not linked")
-    }
-
-    const response = await fetch(
-        `https://api.github.com/users/${profile.githubUsername}`
-    )
-
-   const githubData = await response.json()
+    const username = await getGithubUsername(userId);
+    const githubData = await fetchGithubUser(username);
 
    return {
         username: githubData.login,

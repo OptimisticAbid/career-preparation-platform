@@ -1,23 +1,11 @@
-import { eq } from "drizzle-orm";
-import { db } from "../../db/index.js";
-import { profiles } from "../../db/schema/profiles.schema.js";
-import { users } from "../../db/schema/users.schema.js";
+import * as profilesRepository from "./profiles.repository.js";
 
 export const getUserProfileService = async (userId, profileData) => {
     if (!userId) {
         throw new Error("User ID is required");
     }
 
-    const [userProfile] = await db.select({
-        id: users.id,
-        name: users.name,
-        leetcodeUsername: profiles.leetcodeUsername,
-        githubUsername: profiles.githubUsername,
-        codeforcesUsername: profiles.codeforcesUsername,
-        codechefUsername: profiles.codechefUsername
-    }).from(users)
-    .leftJoin(profiles, eq(users.id, profiles.userId))
-    .where(eq(users.id, userId));
+    const userProfile = await profilesRepository.findByUserId(userId);
 
     if (!userProfile) {
         throw new Error("User profile not found");
@@ -27,12 +15,7 @@ export const getUserProfileService = async (userId, profileData) => {
 };
 
 export const updateUserProfileService = async (userId, profileData) => {
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId));
-
-  if (!user) {
+  if (!(await profilesRepository.userExists(userId))) {
     throw new Error("User not found");
   }
 
@@ -46,28 +29,11 @@ export const updateUserProfileService = async (userId, profileData) => {
     throw new Error("No fields provided");
   }
 
-  const [existingProfile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.userId, userId));
+  const existingProfile = await profilesRepository.findProfileRecord(userId);
 
   if (!existingProfile) {
-    const [newProfile] = await db
-      .insert(profiles)
-      .values({
-        userId,
-        ...updateData,
-      })
-      .returning();
-
-    return newProfile;
+    return profilesRepository.create(userId, updateData);
   }
 
-  const [updatedProfile] = await db
-    .update(profiles)
-    .set(updateData)
-    .where(eq(profiles.userId, userId))
-    .returning();
-
-  return updatedProfile;
+  return profilesRepository.updateByUserId(userId, updateData);
 };

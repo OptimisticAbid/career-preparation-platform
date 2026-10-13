@@ -7,7 +7,7 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "server": "nodemon server.js",
     "db:generate": "npx drizzle-kit generate --config drizzle.config.js",
     "db:migrate": "npx drizzle-kit migrate --config drizzle.config.js",
@@ -15,6 +15,7 @@
     "db:studio": "npx drizzle-kit studio --config drizzle.config.js"
   },
   "dependencies": {
+    "@google/genai": "^2.19.0",
     "@langchain/core": "^1.2.8",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
@@ -23,8 +24,12 @@
     "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
     "langchain": "^1.5.9",
+    "mammoth": "^1.13.0",
     "multer": "^2.2.0",
-    "pg": "^8.20.0"
+    "openai": "^7.8.0",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.20.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.10",

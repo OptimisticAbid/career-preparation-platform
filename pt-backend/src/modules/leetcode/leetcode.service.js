@@ -1,202 +1,96 @@
-import { eq } from "drizzle-orm";
-import redis from "../../redis/redis.js";
-import { db } from "../../db/index.js";
-import { profiles } from "../../db/schema/profiles.schema.js";
-import { problems } from "../../db/schema/problems.schema.js";
 import { createProblemService, problemExistsService } from "../problems/problems.service.js";
-import {
-    fetchUserSubmissions,
-    fetchProblemDetails,
-    fetchAllStats,
-} from "./leetcode-api.client.js";
-import { validateStatsRequest, validateSyncRequest } from "./leetcode.validation.js";
-import { CACHE_KEYS, LEETCODE_CONFIG, ERROR_MESSAGES } from "./leetcode.config.js";
-import { LeetCodeAPIError, ValidationError } from "./leetcode.errors.js";
-import leetcodeLogger from "./leetcode.logger.js";
+import { validateUserId } from "./leetcode.validation.js";
+import { findUsernameByUserId } from "./leetcode.repository.js";
 
-/**
- * Get user's linked LeetCode username
- */
+const LEETCODE_API = "https://alfa-leetcode-api.onrender.com";
+
+const fetchJson = async (url) => {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        throw new Error(`LeetCode API request failed: ${response.status}`);
+    }
+
+    return response.json();
+};
+
 const getUserLeetcodeUsername = async (userId) => {
-    try {
-        const [userProfile] = await db
-            .select({ leetcodeUsername: profiles.leetcodeUsername })
-            .from(profiles)
-            .where(eq(profiles.userId, userId));
+    validateUserId(userId);
 
-        if (!userProfile?.leetcodeUsername) {
-            throw new ValidationError(ERROR_MESSAGES.PROFILE_NOT_LINKED);
-        }
-
-        return userProfile.leetcodeUsername;
-    } catch (error) {
-        if (error instanceof ValidationError) throw error;
-        throw new LeetCodeAPIError(
-            "Failed to fetch user profile from database",
-            500,
-            error
-        );
+    const username = await findUsernameByUserId(userId);
+    if (!username) {
+        throw new Error("LeetCode profile not linked to user account");
     }
+
+    return username;
 };
 
-/**
- * Get LeetCode stats with caching
- */
 export const leetcodeStatsService = async (userId) => {
-    try {
-        validateStatsRequest(userId);
+    const username = await getUserLeetcodeUsername(userId);
 
-        const username = await getUserLeetcodeUsername(userId);
-        const cacheKey = CACHE_KEYS.STATS(username);
+    const [profile, solved, badges] = await Promise.all([
+        fetchJson(`${LEETCODE_API}/${username}`),
+        fetchJson(`${LEETCODE_API}/${username}/solved`),
+        fetchJson(`${LEETCODE_API}/${username}/badges`).catch(() => []),
+    ]);
 
-        // Try cache first
-        const cachedData = await redis.get(cacheKey);
-        if (cachedData) {
-            leetcodeLogger.info(`Cache hit for stats: ${username}`);
-            return JSON.parse(cachedData);
-        }
-
-        // Fetch from API
-        leetcodeLogger.info(`Fetching stats for: ${username}`);
-        const stats = await fetchAllStats(username);
-
-        // Cache the result
-        await redis.setex(
-            cacheKey,
-            LEETCODE_CONFIG.CACHE_TTL,
-            JSON.stringify(stats)
-        );
-
-        return stats;
-    } catch (error) {
-        leetcodeLogger.error("Stats service error", { error: error.message });
-        throw error;
-    }
+    return {
+        profile,
+        stats: solved,
+        badges,
+    };
 };
 
-/**
- * Sync LeetCode submissions with database
- */
 export const leetcodeSyncService = async (userId) => {
-    const syncStartTime = Date.now();
+    const username = await getUserLeetcodeUsername(userId);
+    const submissionsResponse = await fetchJson(`${LEETCODE_API}/${username}/acSubmission`);
+    const submissions = Array.isArray(submissionsResponse?.submission)
+        ? submissionsResponse.submission
+        : [];
 
-    try {
-        validateSyncRequest(userId);
+    let imported = 0;
+    let skipped = 0;
+    let errors = 0;
 
-        const username = await getUserLeetcodeUsername(userId);
+    for (const submission of submissions) {
+        try {
+            const sourceProblemId = submission.sourceProblemId || submission.titleSlug;
+            const alreadyExists = await problemExistsService(userId, "Leetcode", String(sourceProblemId));
 
-        leetcodeLogger.info(`Starting sync for user: ${userId} (${username})`);
+            if (alreadyExists) {
+                skipped++;
+                continue;
+            }
 
-        // Fetch submissions
-        const submissions = await fetchUserSubmissions(username);
+            const problem = await fetchJson(`${LEETCODE_API}/select?titleSlug=${submission.titleSlug}`);
 
-        if (!Array.isArray(submissions) || submissions.length === 0) {
-            return { imported: 0, skipped: 0, processed: 0 };
+            const problemData = {
+                userId,
+                problemName: submission.title,
+                sourceProblemId: String(problem.questionId || submission.titleSlug),
+                difficulty: problem.difficulty || "Unknown",
+                status: "Solved",
+                platform: "leetcode",
+                platformUrl: `https://leetcode.com/problems/${problem.titleSlug}`,
+                solvedAt: new Date(Number(submission.timestamp) * 1000),
+            };
+
+            const result = await createProblemService(userId, problemData);
+
+            if (!result?.skipped) {
+                imported++;
+            } else {
+                skipped++;
+            }
+        } catch (error) {
+            errors++;
         }
-
-        leetcodeLogger.info(
-            `Found ${submissions.length} submissions for ${username}`
-        );
-
-        // Process submissions in batches
-        let imported = 0;
-        let skipped = 0;
-        let errors = 0;
-
-        // Process in chunks to avoid overwhelming the system
-        for (let i = 0; i < submissions.length; i += LEETCODE_CONFIG.BATCH_SIZE) {
-            const batch = submissions.slice(
-                i,
-                i + LEETCODE_CONFIG.BATCH_SIZE
-            );
-
-            await Promise.allSettled(
-                batch.map(async (submission) => {
-                    try {
-                        const sourceProblemId = submission.sourceProblemId;
-
-                        // Check if problem already exists
-                        const exists = await problemExistsService(
-                            userId,
-                            "Leetcode",
-                            sourceProblemId
-                        );
-
-                        if (exists) {
-                            skipped++;
-                            return;
-                        }
-
-                        // Fetch problem details
-                        const problem = await fetchProblemDetails(
-                            submission.titleSlug
-                        );
-
-                        if (!problem) {
-                            errors++;
-                            return;
-                        }
-
-                        // Prepare problem data
-                        const problemData = {
-                            userId,
-                            problemName: submission.title,
-                            sourceProblemId: problem.questionId,
-                            difficulty: problem.difficulty || "Unknown",
-                            status: "Solved",
-                            platform: "leetcode",
-                            platformUrl: `https://leetcode.com/problems/${problem.titleSlug}`,
-                            solvedAt: new Date(
-                                Number(submission.timestamp) * 1000
-                            ),
-                        };
-
-                        // Save to database
-                        const result = await createProblemService(
-                            userId,
-                            problemData
-                        );
-
-                        if (!result?.skipped) {
-                            imported++;
-                        } else {
-                            skipped++;
-                        }
-                    } catch (error) {
-                        errors++;
-                        leetcodeLogger.error("Error processing submission", {
-                            error: error.message,
-                            submission: submission.title,
-                        });
-                    }
-                })
-            );
-        }
-
-        const duration = Date.now() - syncStartTime;
-
-        leetcodeLogger.info("Sync completed", {
-            userId,
-            username,
-            imported,
-            skipped,
-            errors,
-            durationMs: duration,
-        });
-
-        return {
-            imported,
-            skipped,
-            errors,
-            processed: imported + skipped + errors,
-            durationMs: duration,
-        };
-    } catch (error) {
-        leetcodeLogger.error("Sync service error", {
-            userId,
-            error: error.message,
-            durationMs: Date.now() - syncStartTime,
-        });
-        throw error;
     }
+
+    return {
+        imported,
+        skipped,
+        errors,
+        processed: imported + skipped + errors,
+    };
 };

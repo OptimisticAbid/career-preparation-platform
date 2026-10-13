@@ -1,8 +1,4 @@
 import asyncHandler from "../../utils/asyncHandler.js"
-import {db} from '../../db/index.js'
-import {users} from "../../db/schema/users.schema.js"
-import bcrypt from 'bcrypt'
-import { eq } from "drizzle-orm"
 import jwt from 'jsonwebtoken'
 import { getUserProfileService, loginUserService, registerUserService } from "./auth.service.js"
 

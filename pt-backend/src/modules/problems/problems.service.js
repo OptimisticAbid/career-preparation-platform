@@ -1,228 +1,95 @@
-import { and, eq, like, desc, asc, ilike, inArray } from "drizzle-orm";
-import { db } from "../../db/index.js";
-import { problems } from "../../db/schema/problems.schema.js"
-import asyncHandler from "../../utils/asyncHandler.js";
+import * as problemsRepository from "./problems.repository.js";
 
-// Utility: Convert difficulty text to number
+const difficultyValues = { easy: 1, medium: 2, hard: 3 };
+
 const normalizeDifficulty = (difficulty) => {
-    const difficultyMap = { easy: 1, medium: 2, hard: 3 };
-    return difficultyMap[difficulty?.toLowerCase()]
+    if (difficulty === undefined || difficulty === null) return undefined;
+    if (typeof difficulty === "number") return difficulty;
+    return difficultyValues[difficulty.toLowerCase()];
 };
 
 export const problemExistsService = async (userId, platform, sourceProblemId) => {
-    const [existingProblem] = await db.select({
-        id: problems.id
-    }).from(problems).where(and(
-        eq(problems.userId, userId),
-        eq(problems.platform, platform),
-        eq(problems.sourceProblemId, sourceProblemId)
-    ))
-
-    return !!existingProblem
-}
+    const problem = await problemsRepository.findByPlatformSource(userId, platform, sourceProblemId);
+    return Boolean(problem);
+};
 
 export const createProblemService = async (userId, problemData) => {
-     const [existingProblem] = await db.select().from(problems).where(and(
-        eq(problems.userId,userId),
-        eq(problems.platform,problemData.platform),
-        eq(problems.sourceProblemId, problemData.sourceProblemId)
-    ))
-
-    if(existingProblem) {
-        return {
-            skipped : true,
-            problem: existingProblem
-        }
-    }
-    
-    const [problem] = await db.insert(problems)
-        .values({
+    if (problemData.sourceProblemId && problemData.platform) {
+        const existing = await problemsRepository.findByPlatformSource(
             userId,
-            problemName: problemData.problemName,
-            difficulty: normalizeDifficulty(problemData.difficulty),
-            sourceProblemId: problemData.sourceProblemId,
-            status: problemData.status,
-            platform: problemData.platform || null,
-            platformUrl: problemData.platformUrl || null,
-            pattern: problemData.pattern || null,
-            notes: problemData.notes || null,
-            needsRevison: problemData.needsRevison || false,
-            solvedAt: problemData.solvedAt || null,
-            timeTaken: problemData.timeTaken || null
-        })
-        .returning({
-            problemName: problems.problemName,
-            difficulty: problems.difficulty,
-            status: problems.status,
-            platform: problems.platform,
-        });
-
-    if (!problem) {
-        throw new Error("Failed to create problem");
+            problemData.platform,
+            problemData.sourceProblemId,
+        );
+        if (existing) return { skipped: true, problem: existing };
     }
 
+    const difficulty = normalizeDifficulty(problemData.difficulty);
+    if (difficulty === undefined) throw new Error("Invalid difficulty");
+
+    const problem = await problemsRepository.create({
+        userId,
+        problemName: problemData.problemName,
+        difficulty,
+        sourceProblemId: problemData.sourceProblemId,
+        status: problemData.status,
+        platform: problemData.platform || null,
+        platformUrl: problemData.platformUrl || null,
+        pattern: problemData.pattern || null,
+        notes: problemData.notes || null,
+        needsRevison: problemData.needsRevison ?? problemData.needsRevision ?? false,
+        solvedAt: problemData.solvedAt || null,
+        timeTaken: problemData.timeTaken ?? null,
+    });
+
+    if (!problem) throw new Error("Failed to create problem");
     return problem;
 };
 
-export const fetchAllProblemsService = async(userId, filters = {}) => {
-    const { 
-        difficulty, 
-        status, 
-        pattern, 
-        needsRevision, 
-        search,
-        sortBy,
-        sortOrder,
-        limit = 20,
-        offset = 0 
-    } = filters
-    
-    let query = db.select().from(problems).where(eq(problems.userId, userId))
+export const fetchAllProblemsService = async (userId, filters = {}) => {
+    const difficulty = normalizeDifficulty(filters.difficulty);
+    if (filters.difficulty && difficulty === undefined) throw new Error("Invalid difficulty filter");
 
-    if (difficulty) {
-        query = query.where(eq(problems.difficulty, normalizeDifficulty(difficulty)))
-    }
-
-    if (status) {
-        query = query.where(eq(problems.status, status))
-    }
-
-    if (pattern) {
-        query = query.where(eq(problems.pattern, pattern))
-    }
-
-    if (needsRevision !== undefined) {
-        query = query.where(eq(problems.needsRevison, needsRevision))
-    }
-
-    if (search) {
-        query = query.where(ilike(problems.problemName, `%${search}%`));
-    }
-    
-     // Sorting
-    if (sortBy && sortOrder) {
-        const sortColumn = problems[sortBy] || problems.createdAt;
-        const sortDirection = sortOrder.toLowerCase() === "asc" ? asc : desc;
-        query = query.orderBy(sortDirection(sortColumn));
-    }
-
-    // Pagination
-    query = query.limit(limit).offset(offset);
-
-    const userProblems = await query
-
-    if(!userProblems) {
-        throw new Error("Failed to fetch problems")
-    }
-
-    return userProblems
-}
-
-export const getProblemByIdService = async (userId, problemId) => {
-    const problem = await db.select().from(problems).where(
-        and(
-            eq(problems.id, problemId),
-            eq(problems.userId, userId)
-        )
-    )
-
-    if(!problem || problem.length === 0) {
-        throw new Error("The problem does not exist")
-    }
-
-    return problem[0]
-}
-
-export const updateProblemService = async(userId, problemId, updateData) => {
-    
-    const [existingProblem] = await db.select().from(problems).where(
-        and(
-            eq(problems.id,problemId),
-            eq(problems.userId, userId)
-        )
-    )
-
-    if(!existingProblem) {
-        throw new Error("Problem not found or unauthorized")
-    }
-
-    const updatePayload = {};
-    
-    if (updateData.problemName !== undefined) updatePayload.problemName = updateData.problemName;
-    if (updateData.difficulty !== undefined) updatePayload.difficulty = normalizeDifficulty(updateData.difficulty);
-    if (updateData.status !== undefined) updatePayload.status = updateData.status;
-    if (updateData.platform !== undefined) updatePayload.platform = updateData.platform;
-    if (updateData.platformUrl !== undefined) updatePayload.platformUrl = updateData.platformUrl;
-    if (updateData.pattern !== undefined) updatePayload.pattern = updateData.pattern;
-    if (updateData.notes !== undefined) updatePayload.notes = updateData.notes;
-    if (updateData.needsRevison !== undefined) updatePayload.needsRevison = updateData.needsRevison;
-    if (updateData.solvedAt !== undefined) updatePayload.solvedAt = updateData.solvedAt;
-    if (updateData.timeTaken !== undefined) updatePayload.timeTaken = updateData.timeTaken;
-
-    const [updatedProblem] = await db.update(problems)
-                        .set(updatePayload)
-                        .where(eq(problems.id, problemId))
-                        .returning()
-
-    if(!updatedProblem) {
-        throw new Error("Failed to update problem")
-    }
-    
-    return updatedProblem
+    return problemsRepository.findAll(userId, {
+        ...filters,
+        difficulty,
+        sortBy: filters.sortBy || "createdAt",
+        sortOrder: filters.sortOrder?.toLowerCase() === "asc" ? "asc" : "desc",
+        limit: Math.min(Math.max(Number(filters.limit) || 20, 1), 100),
+        offset: Math.max(Number(filters.offset) || 0, 0),
+    });
 };
 
-export const deleteProblemService =  async(userId, problemId) => {
-    
-    const [existingProblem] = await db.select().from(problems).where(
-        and(
-            eq(problems.id,problemId),
-            eq(problems.userId, userId)
-        )
-    )
+export const getProblemByIdService = async (userId, problemId) => {
+    const problem = await problemsRepository.findById(userId, problemId);
+    if (!problem) throw new Error("The problem does not exist");
+    return problem;
+};
 
-    if(!existingProblem) {
-        throw new Error("Problem not found or unauthorized")
+export const updateProblemService = async (userId, problemId, updateData) => {
+    const updatePayload = Object.fromEntries(
+        Object.entries(updateData).filter(([, value]) => value !== undefined),
+    );
+
+    if (updatePayload.difficulty !== undefined) {
+        updatePayload.difficulty = normalizeDifficulty(updatePayload.difficulty);
+        if (updatePayload.difficulty === undefined) throw new Error("Invalid difficulty");
     }
+    if (Object.keys(updatePayload).length === 0) throw new Error("No fields provided");
 
-    const [deletedProblem] = await db.delete(problems)
-                        .where(
-                            and(
-                                eq(problems.id, problemId),
-                                eq(problems.userId, userId)
-                            )
-                        )
-                        .returning({
-                            id: problems.id,
-                            problemName: problems.problemName,
-                        })
+    const problem = await problemsRepository.updateById(userId, problemId, updatePayload);
+    if (!problem) throw new Error("Problem not found or unauthorized");
+    return problem;
+};
 
-    if(!deletedProblem) {
-        throw new Error("Failed to delete problem")
-    }
-    
-    return deletedProblem
-}
+export const deleteProblemService = async (userId, problemId) => {
+    const problem = await problemsRepository.deleteById(userId, problemId);
+    if (!problem) throw new Error("Problem not found or unauthorized");
+    return problem;
+};
 
-export const deleteBatchProblemsService = async(userId, problemIds) =>{
+export const deleteBatchProblemsService = async (userId, problemIds) => {
     if (!Array.isArray(problemIds) || problemIds.length === 0) {
         throw new Error("Problem IDs must be a non-empty array");
     }
-
-    const deletedProblems = await db.delete(problems)
-                        .where(
-                            and(
-                                eq(problems.userId, userId),
-                                inArray(problems.id, problemIds)
-                            )
-                        )
-                        .returning({
-                            id: problems.id,
-                            problemName: problems.problemName,
-                        })
-
-    if(!deletedProblems) {
-        throw new Error("Failed to delete problems")
-    }
-
-    return deletedProblems  
+    return problemsRepository.deleteByIds(userId, problemIds);
 };
