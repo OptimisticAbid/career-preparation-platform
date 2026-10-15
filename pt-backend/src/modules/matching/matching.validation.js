@@ -77,7 +77,7 @@ export const matchingResponseSchema = {
 };
 
 export const matchResultSchema = z.object({
-    overall_score: z.number().int().min(0).max(100),
+    // overall_score: z.number().int().min(0).max(100),
     breakdown: z.object({
         skill_match_score: scoreSchema,
         experience_match_score: scoreSchema,

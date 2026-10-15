@@ -27,7 +27,7 @@ const createMatchResult = async (resume, jobDescription) => {
     } catch {
         throw httpError(502, "Matching could not be completed by the AI provider. Please retry.");
     }
-
+    console
     const parsed = matchResultSchema.safeParse(result);
     if (!parsed.success) throw httpError(502, "The matching provider returned an invalid result.");
     return parsed.data;
